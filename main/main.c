@@ -91,37 +91,6 @@ static void picture_ready(void)
 
 /* ---- Starting ---- */
 
-/* A real BIOS ROM: pcxt.rom or pcat.rom beside the disk images (pc/ on
- * the SD card, uploaded as they are), 8 to 64 KB; NULL (and a message) if
- * it isn't there
- */
-static uint8_t *s_bios;
-static uint32_t s_bios_size;
-
-static const uint8_t *load_bios(bool at)
-{
-    char path[160];
-    snprintf(path, sizeof(path), "%s/%s", disks_folder(), at ? "pcat.rom" : "pcxt.rom");
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
-        emu_set_message(at ? "No pcat.rom with the disk images: the built-in BIOS."
-                           : "No pcxt.rom with the disk images: the built-in BIOS.");
-        return NULL;
-    }
-    if (s_bios == NULL) {
-        s_bios = heap_caps_malloc(0x10000, MALLOC_CAP_SPIRAM);
-    }
-    size_t n = s_bios ? fread(s_bios, 1, 0x10000, f) : 0;
-    fclose(f);
-    if (n < 0x2000) {
-        emu_set_message("The BIOS ROM must be 8 to 64 KB: the built-in BIOS.");
-        return NULL;
-    }
-    s_bios_size = (uint32_t)n;
-    ESP_LOGI(TAG, "BIOS: %s, %u KB", path, (unsigned)(n / 1024));
-    return s_bios;
-}
-
 /* The presenter and the console's screenshots draw lines at once */
 static SemaphoreHandle_t s_render_mutex;
 
@@ -207,8 +176,6 @@ static bool start(void)
     s_cfg.video = settings.video;
     s_cfg.conv_kb = settings.ram_kb;
     s_cfg.ext_kb = ext;
-    s_cfg.bios_rom = settings.bios ? load_bios(at) : NULL;
-    s_cfg.bios_size = s_bios_size;
     if (s_copier == NULL) {
         xTaskCreatePinnedToCore(copier_task, "picture", 3072, NULL, 6, &s_copier, 0);
     }
@@ -385,29 +352,16 @@ static void touch(int x, int y, bool pressed)
 
 /* ---- Setup screen choices ----
  *
- * Machine: the PC/XT and PC/AT as IBM made them (choosing one sets the
- * others to its defaults), or Custom; Processor: the machine's (the board
- * follows it: the 286 on the AT's); Video; Memory: the processor's; BIOS:
- * the built-in one, or a real ROM from the SD card.
+ * Machine: the PC/XT and PC/AT (choosing one sets the others to its
+ * defaults); Processor: the machine's; Coprocessor: off or on (the 8087,
+ * the 287); Video; Memory: the processor's. The BIOS is the built-in one
+ * (a real ROM would come with the firmware: pc_config_t.bios_rom).
  */
-enum { CHOICE_MACHINE, CHOICE_PROCESSOR, CHOICE_VIDEO, CHOICE_MEMORY, CHOICE_BIOS, CHOICES };
+enum { CHOICE_MACHINE, CHOICE_PROCESSOR, CHOICE_FPU, CHOICE_VIDEO, CHOICE_MEMORY, CHOICES };
 
-static const char *const machine_names[] = { "PC/XT", "PC/AT", "Custom", "" };
+static const char *const machine_names[] = { "PC/XT", "PC/AT", "" };
+static const char *const fpu_names[] = { "Off", "On", "" };
 static const char *const video_names[] = { "CGA", "Hercules", "EGA", "VGA", "" };
-static const char *const bios_names[] = { "Built-in", "ROM file", "" };
-
-static int bios_get(void)
-{
-    return settings.bios;
-}
-
-static void bios_set(int i)
-{
-    if (i == 0 || i == 1) {
-        settings.bios = (uint8_t)i;
-        settings_save();
-    }
-}
 
 static int machine_get(void)
 {
@@ -416,12 +370,21 @@ static int machine_get(void)
 
 static void machine_set(int i)
 {
-    if (i >= MACHINE_XT && i <= MACHINE_CUSTOM && i != settings.machine) {
-        if (i == MACHINE_CUSTOM) {
-            settings.machine = MACHINE_CUSTOM;     /* keeps the rest */
-        } else {
-            settings_defaults(i);
-        }
+    if (i >= MACHINE_XT && i <= MACHINE_AT && i != settings.machine) {
+        settings_defaults(i);
+        settings_save();
+    }
+}
+
+static int fpu_get(void)
+{
+    return settings.fpu != 0;
+}
+
+static void fpu_set(int i)
+{
+    if (i == 0 || i == 1) {
+        settings.fpu = (uint8_t)i;
         settings_save();
     }
 }
@@ -431,7 +394,7 @@ static int processor_get(void)
     int n;
     const processor_t *p = settings_processors(settings.machine, &n);
     for (int i = 0; i < n; i++) {
-        if (p[i].cpu == settings.cpu && p[i].khz == settings.khz && p[i].fpu == (settings.fpu != 0)) {
+        if (p[i].cpu == settings.cpu && p[i].khz == settings.khz) {
             return i;
         }
     }
@@ -446,7 +409,6 @@ static void processor_set(int i)
         bool was_286 = settings.cpu == X86_80286;
         settings.cpu = p[i].cpu;
         settings.khz = p[i].khz;
-        settings.fpu = p[i].fpu;
         if (was_286 != (settings.cpu == X86_80286)) {
             settings.ram_kb = 640;                 /* the other memory row */
             settings.ext_kb = settings.cpu == X86_80286 ? 1024 : 0;
@@ -522,9 +484,9 @@ static const char *const default_names[] = { "-", "" };
 static const emu_choice_t choices[CHOICES] = {
     { "Machine", machine_names, machine_get, machine_set, false },
     { "Processor", default_names, processor_get, processor_set, false },
+    { "Coprocessor", fpu_names, fpu_get, fpu_set, false },
     { "Video", video_names, video_get, video_set, false },
     { "Memory", default_names, memory_get, memory_set, false },
-    { "BIOS", bios_names, bios_get, bios_set, false },
 };
 
 /* ---- Disks: two floppy drives, two hard disks ---- */
@@ -532,8 +494,7 @@ static const emu_choice_t choices[CHOICES] = {
 #define DRIVES      (PC_FLOPPIES + PC_HARD_DISKS)
 #define MB(n)       ((uint32_t)(n) * 1024 * 1024 / 516096 * 516096)    /* whole cylinders */
 
-/* (.rom: a real BIOS, uploaded beside the images; no drive takes it) */
-static const char *const extensions[] = { ".img", ".ima", ".vfd", ".flp", ".hdd", ".vhd", ".rom", NULL };
+static const char *const extensions[] = { ".img", ".ima", ".vfd", ".flp", ".hdd", ".vhd", NULL };
 static const char *const drive_names[DRIVES] = { "A:", "B:", "C:", "D:" };
 static const disks_size_t sizes[] = {
     { 1474560, "1.44 MB floppy (3.5\")" },
@@ -568,10 +529,6 @@ static bool hd_name(const char *name)
 
 static bool disk_accepts(int drive, const char *name)
 {
-    size_t n = strlen(name);
-    if (n > 4 && !strcasecmp(name + n - 4, ".rom")) {
-        return false;
-    }
     return (drive >= PC_FLOPPIES) == hd_name(name);
 }
 
@@ -658,8 +615,7 @@ static void status(emu_json_t *j, int section)
         } else {
             snprintf(mem, sizeof(mem), "%u KB", started ? s_cfg.conv_kb : settings.ram_kb);
         }
-        snprintf(text, sizeof(text), "IBM %s, %s%s", at ? "PC/AT" : "PC/XT", mem,
-                 (started ? s_cfg.bios_rom != NULL : settings.bios) ? ", ROM BIOS" : "");
+        snprintf(text, sizeof(text), "IBM %s, %s", at ? "PC/AT" : "PC/XT", mem);
         emu_json_row(j, "System", text);
         x86_model_t cpu = started ? s_cfg.cpu : (x86_model_t)settings.cpu;
         unsigned khz = started ? s_cfg.cpu_hz / 1000 : settings.khz;
@@ -671,6 +627,16 @@ static void status(emu_json_t *j, int section)
         emu_json_row(j, "CPU", text);
         snprintf(text, sizeof(text), "%s: %s", video_names[video <= PC_VGA ? video : 0], s.mode);
         emu_json_row(j, "Video", text);
+        /* DOS's, below 640 KB (FreeCOM keeps ~68 KB of it at the prompt) */
+        uint32_t free_kb, largest_kb;
+        if (started && pc_dos_memory(&free_kb, &largest_kb)) {
+            int len = snprintf(text, sizeof(text), "%u KB of %u KB", (unsigned)free_kb, (unsigned)s_cfg.conv_kb);
+            if (largest_kb < free_kb) {
+                snprintf(text + len, sizeof(text) - (size_t)len, " <span class=\"dim\">(largest block %u KB)</span>",
+                         (unsigned)largest_kb);
+            }
+            emu_json_row_bar(j, "Free RAM", text, 100 - (int)(free_kb * 100 / s_cfg.conv_kb));
+        }
         if (s_printed) {
             snprintf(text, sizeof(text), "%u bytes printed to PRINTER.TXT", (unsigned)s_printed);
             emu_json_row(j, "Printer", text);

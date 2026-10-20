@@ -124,3 +124,8 @@ typedef struct {
 } pc_status_t;
 
 void pc_get_status(pc_status_t *status);
+/* DOS's free conventional memory and its largest free block (KB), from
+ * its memory control blocks; false while there's no DOS (any task: it only
+ * reads the PC's memory)
+ */
+bool pc_dos_memory(uint32_t *free_kb, uint32_t *largest_kb);

@@ -1,14 +1,14 @@
 # esp32pc: IBM PC emulator on the Makerfabs MaTouch ESP32-S3 7" and the M5Stack Tab5
 
-An IBM PC/XT (an 8088 at 4.77 MHz, 256-640 KB) and PC/AT (an 80286 at 6
-MHz, on the Tab5 also 8 MHz; 640 KB and extended memory, protected mode),
-and a Custom machine (the 8086 at 8 MHz; on the Tab5 the 286 at 8 and 12
-MHz too), with a CGA, Hercules, EGA or VGA card, an AdLib and a Sound
-Blaster 2.0, an 8087/287 coprocessor (a choice on the XT and AT, always on
-Custom), two floppy drives and two hard disks from images (or folders) on
-the SD card, a Microsoft mouse on COM1, a printer on LPT1 (a file on the
-card) (`docs/architecture.md`: the plan and the decisions). Built-in BIOS
-(no ROM images), or a real BIOS ROM from the SD card. Bluetooth and USB
+An IBM PC/XT (an 8088 at 4.77 MHz or an 8086 at 8 MHz, 256-640 KB) and
+PC/AT (an 80286 at 6 MHz, on the Tab5 also 8 and 12 MHz; 640 KB and
+extended memory, protected mode), with a CGA, Hercules, EGA or VGA card,
+an AdLib and a Sound Blaster 2.0, an 8087/287 coprocessor (off or on), two
+floppy drives and two hard disks from images (or folders) on the SD card, a
+Microsoft mouse on COM1, a printer on LPT1 (a file on the card)
+(`docs/architecture.md`: the plan and the decisions). The built-in BIOS
+(no ROM images; the library takes a real ROM, `pc_config_t.bios_rom`, for
+one built into the firmware or the host's `PC_BIOS`). Bluetooth and USB
 keyboards and mice, touch as a touchpad, an LVGL setup screen, a web page
 for disk images (it packs dropped files and folders onto one). ESP-IDF
 v5.5.4, C.
@@ -48,7 +48,7 @@ shared with the other projects: after another one, a full `flash`.
 
 | Path | What |
 |---|---|
-| `main/main.c` | The PC as an `emu_machine_t`: memory, settings, the HID key map, the mouse and touch, the drives, the BIOS ROM file, status, console commands |
+| `main/main.c` | The PC as an `emu_machine_t`: memory, settings (the setup screen's five rows: Machine, Processor, Coprocessor, Video, Memory), the HID key map, the mouse and touch, the drives, status (DOS's free memory as "Free RAM" with a bar), console commands |
 | `main/settings.c` | NVS settings (namespace `pc`: `machine`, `cpu`, `khz`, `fpu`, `video`, `ram_kb`, `ext_kb`, `bios`); the processors (with or without the coprocessor) and memory each machine offers, per board |
 | `main/web/pcfiles.js` | The web page's packer (`/machine.js`): dropped files, folders and ZIP contents onto a FAT floppy (the smallest that fits) or a FAT16 hard disk image, in the browser; runs under node too |
 | `components/ibmpc/` | The PC, platform independent (`include/pc.h`); `host/` its host build |
@@ -114,7 +114,8 @@ shared with the other projects: after another one, a full `flash`.
   disk waits and tries again (a disk can be put in meanwhile). INT 13h reads
   the images directly; programs that drive the floppy controller, DMA or
   the AT's disk controller get the chips. With a real BIOS
-  (`pc_config_t.bios_rom`: `pcxt.rom`/`pcat.rom` beside the images) the
+  (`pc_config_t.bios_rom`: the host's `PC_BIOS`; the boards' setup screen
+  no longer loads one from the card, a future one would be in the firmware) the
   traps are honoured only in C0000h-CFFFFh, where ours become option ROMs:
   the hard disks' INT 13h and INT 19h at C8000h (as an XT controller card's:
   the BIOS's own INT 13h kept for the floppies), the EGA/VGA BIOS at
@@ -187,12 +188,17 @@ shared with the other projects: after another one, a full `flash`.
   changes or an access goes to the bus; the 16 KB went to the S3's
   instruction cache, 32 KB).
 - **Processors per board** (`settings.c`): only what runs at full speed
-  there. Tab5: XT 8088 4.77; AT 286 6, 8 MHz; Custom 8088 4.77, 8086 8, 286
-  8, 12 MHz. MaTouch: XT 8088 4.77; AT 286 6 MHz; Custom 8088 4.77, 8086 8
-  (its 286 at 8 MHz ran the benchmark at 97-99% with core 1 at 100%).
-  Settings a board doesn't offer fall back to its first. The XT and AT
-  also offer each with the coprocessor (the buttons' second line: "6 MHz
-  + 287"); Custom always has it.
+  there. Both: XT 8088 4.77, 8086 8 MHz (the turbo XTs'). Tab5: AT 286 6,
+  8, 12 MHz; MaTouch: AT 286 6 MHz (its 8 MHz ran the benchmark at 97-99%
+  with core 1 at 100%). Settings a board doesn't offer fall back to its
+  first; a saved former Custom machine goes to the XT or AT by its
+  processor. The coprocessor is a row of its own (Off/On, NVS `fpu`).
+  The setup screen's former BIOS row (a ROM file from the card) is gone.
+- **DOS's free memory** (`pc_dos_memory()`, the web page's "Free RAM" row
+  with a bar, like the ST's, Macs', Archimedes' and IIGS's): DOS's memory
+  control blocks, the chain's start found by looking for one that reaches
+  the top of conventional memory. At the prompt FreeCOM keeps ~68 KB of it
+  (swapped out to XMS when a program runs: MEM shows more).
 - **Disks**: floppies and hard disks read and written in place (geometry
   from a VHD footer, the partition table, or 16 x 63), or a folder. Blank hard
   disks (10-128 MB) are partitioned and formatted with a master boot record
@@ -356,6 +362,13 @@ shared with the other projects: after another one, a full `flash`.
 - **emu8950's rate converter uses doubles per sample**: run it at the
   chip's own rate and resample in fixed point (neither the S3 nor the P4
   has a double FPU).
+- **32.32 fixed point of an ever-growing count overflows**: the speaker's
+  sample clock held the PIT's ticks since the reset as 32.32, which passes
+  2^64 after 2^32 ticks, an hour. No sample came after it, and the Tab5
+  (paced by its sound) ran unpaced at 17,000 frames a second; the
+  MaTouch's Sound Blaster DMA would have stalled. Relative to an origin
+  moved on each frame now; a host run of 64 minutes with `PC_WAV` checks
+  it (the recording must last as long as the run).
 - **A partition's end in the MBR must match its size**: FreeDOS warned
   "suspect partition" when the folder disk's partition ended at its last
   cluster but the CHS end at the cylinder's; both are worked out from the

@@ -350,6 +350,10 @@ int main(int argc, char **argv)
         pc_get_status(&s);
         printf("%ld frames, %u instructions in the last, %04X:%04X, %s (%dx%d)\n", s_frame, (unsigned)s.insns,
                s.cs, s.ip, s.mode, s.width, s.height);
+        uint32_t free_kb, largest_kb;
+        if (pc_dos_memory(&free_kb, &largest_kb)) {
+            printf("DOS: %u KB free, the largest block %u KB\n", (unsigned)free_kb, (unsigned)largest_kb);
+        }
     }
     return 0;
 }

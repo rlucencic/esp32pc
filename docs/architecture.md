@@ -491,6 +491,12 @@ measurements written down.
   FreeDOS's driver). Later the presenter's drawing went into the S3's
   internal RAM (its code had taken the shared instruction cache from the
   emulation): Wolfenstein's 3D view 83-88% on the MaTouch.
+- **Setup screen, as asked** (2026-10-20): the Custom machine is gone (the
+  8086 at 8 MHz went to the PC/XT, the Tab5's 12 MHz 286 to the PC/AT),
+  the coprocessor is a row of its own (Off/On), and the BIOS row with it
+  (the built-in BIOS stays; another would be built into the firmware):
+  five rows, Machine, Processor, Coprocessor, Video, Memory. Section 8's
+  table is the original plan.
 
 ## Sources
 

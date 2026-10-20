@@ -395,6 +395,65 @@ void pc_run_frame(void)
 
 /* ---- Status ---- */
 
+/* DOS's memory control blocks: 'M' (or 'Z' for the last), the owner (0:
+ * free), the size in paragraphs, each block after the one before. The
+ * chain's start (in DOS's List of Lists, which only DOS knows) is found by
+ * looking for a chain that reaches the top of conventional memory, then
+ * kept while it still holds.
+ */
+static uint32_t s_first_mcb;
+
+static bool walk_mcbs(uint32_t seg, uint32_t *free_p, uint32_t *largest_p)
+{
+    const uint32_t top = (uint32_t)pc.cfg.conv_kb * 64;
+    uint32_t free_p_sum = 0, largest = 0;
+    for (int n = 0; n < 2000 && seg < top; n++) {
+        const uint8_t *m = pc.ram + seg * 16;
+        if (m[0] != 'M' && m[0] != 'Z') {
+            return false;
+        }
+        uint32_t owner = (uint32_t)(m[1] | m[2] << 8), size = (uint32_t)(m[3] | m[4] << 8);
+        uint32_t end = seg + 1 + size;
+        if (owner == 0) {
+            uint32_t below = end <= top ? size : top - seg - 1;     /* (what's below the top) */
+            free_p_sum += below;
+            largest = below > largest ? below : largest;
+        }
+        if (m[0] == 'Z') {
+            if (end + 1 < top) {
+                return false;       /* (ends short of the top: not DOS's chain) */
+            }
+            *free_p = free_p_sum;
+            *largest_p = largest;
+            return true;
+        }
+        seg = end;
+    }
+    /* past the top through an 'M': upper memory blocks follow (DOS=UMB) */
+    *free_p = free_p_sum;
+    *largest_p = largest;
+    return seg >= top;
+}
+
+bool pc_dos_memory(uint32_t *free_kb, uint32_t *largest_kb)
+{
+    uint32_t f, l;
+    bool found = s_first_mcb && walk_mcbs(s_first_mcb, &f, &l);
+    for (uint32_t seg = 0x50; !found && seg < 0x2000; seg++) {
+        if (pc.ram[seg * 16] == 'M' && walk_mcbs(seg, &f, &l)) {
+            s_first_mcb = seg;
+            found = true;
+        }
+    }
+    if (!found) {
+        s_first_mcb = 0;
+        return false;
+    }
+    *free_kb = f / 64;
+    *largest_kb = l / 64;
+    return true;
+}
+
 void pc_get_status(pc_status_t *s)
 {
     memset(s, 0, sizeof(*s));

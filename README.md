@@ -36,11 +36,12 @@ esp32pc turns a Makerfabs MaTouch ESP32-S3 7" or an M5Stack Tab5 into an
 IBM PC/XT: an **8088** at 4.77 MHz with the PC's own chips (the **8259**
 interrupt controller, the **8253** timer, the **8255** and its keyboard,
 the **8237** DMA controller, the **765** floppy controller) and 256 to
-640 KB; or a PC/AT: an **80286** at 6 MHz (on the Tab5 8 MHz too, and
-12 MHz as a Custom machine) with its protected mode, the **8042** keyboard
+640 KB, or an 8086 at 8 MHz as the turbo XTs had; or a PC/AT: an
+**80286** at 6 MHz (on the Tab5 8 and 12 MHz too) with its protected mode,
+the **8042** keyboard
 controller with the A20 gate, the **MC146818** clock, two 8259s and two
 8237s, the AT's hard disk controller, and up to 2 MB (MaTouch) or 15 MB
-(Tab5) of extended memory; or an 8086 at 8 MHz. Each has a **CGA**, a
+(Tab5) of extended memory. Each has a **CGA**, a
 **Hercules** card, an **EGA** or a **VGA**, an **AdLib** and a **Sound
 Blaster**, optionally an **8087** or **287** coprocessor, a Microsoft
 serial mouse on COM1 and a printer on LPT1 (whose pages land in a file on
@@ -128,8 +129,7 @@ x86 core.
   (`SET BLASTER=A220 I7 D1 T3`): music and digitised effects, as in
   Wolfenstein 3D.
 - **The coprocessor**: an 8087 beside the XT's 8088 or a 287 beside the
-  AT's 286 (a choice on the setup screen; the Custom machine always has
-  one): every instruction, 80-bit values kept exactly in moves, integer
+  AT's 286 (on or off on the setup screen): every instruction, 80-bit values kept exactly in moves, integer
   and BCD conversions, the arithmetic exact to the last bit, exceptions
   as the chips handle them (the AT's IRQ 13, the XT's NMI).
 - **The printer port**: LPT1 at 378h, INT 17h and Print Screen; what's
@@ -138,12 +138,14 @@ x86 core.
   up to 13h), disks, keyboard (with Alt and the keypad, Ctrl-Break,
   Ctrl-Alt-Del), the serial port, the time of day (from the board's clock),
   the boot from A: then C: (without a disk it waits for one).
-- **A real BIOS instead**: put `pcxt.rom` or `pcat.rom` (8 to 64 KB) with
-  the disk images and choose "ROM file" on the setup screen. The built-in
-  BIOS's disk and video parts then come as option ROMs that its POST finds,
-  as an XT's hard disk card and an EGA or VGA bring their own.
+- **A real BIOS instead** (in the emulator's library and its desktop
+  build; on the boards it would be built into the firmware): the built-in
+  BIOS's disk and video parts then come as option ROMs that its POST
+  finds, as an XT's hard disk card and an EGA or VGA bring their own.
   [GLaBIOS](https://github.com/640-KB/GLaBIOS) passes its POST and boots
   floppies and hard disks.
+- **The web page** shows DOS's free memory with a bar, as the other
+  emulators show their systems'.
 - **The debugger**: breakpoints, stepping, registers, memory and the
   disassembly from VS Code over WiFi (esp32emu's debugger and its
   extension).
@@ -184,7 +186,7 @@ on COM1; on the panel a drag moves it, a tap clicks the left button and a
 long press the right one.
 
 <p align="center">
-  <img alt="The setup screen on the Tab5: Machine PC/XT, PC/AT or Custom, Processor 80286 at 6 or 8 MHz, each with or without the 287 coprocessor, Video CGA, Hercules, EGA or VGA, Memory 640 KB with none, 1, 4 or 15 MB more, BIOS built-in or a ROM file, and the WiFi, Bluetooth, Disks and Start buttons" src="docs/images/tab5-setup.png" width="70%">
+  <img alt="The setup screen on the Tab5: Machine PC/XT or PC/AT, Processor 80286 at 6, 8 or 12 MHz, Coprocessor off or on, Video CGA, Hercules, EGA or VGA, Memory 640 KB with none, 1, 4 or 15 MB more, and the WiFi, Bluetooth, Disks and Start buttons" src="docs/images/tab5-setup.png" width="70%">
 </p>
 
 ## Credits
