@@ -19,7 +19,12 @@
 static int16_t *s_ring;
 static volatile uint32_t s_write, s_read;
 static bool s_enabled;
-static uint64_t s_at;               /* the next sample's start, PIT ticks (32.32) */
+/* The next sample's start: PIT ticks from s_origin (32.32). The origin
+ * moves on each frame: 32.32 of the ticks since the reset would overflow
+ * after an hour (2^32 ticks), and no sample would come after it.
+ */
+static uint64_t s_origin;
+static uint64_t s_at;
 static uint64_t s_step;             /* PIT ticks a sample (32.32) */
 static int32_t s_dc;                /* the high pass's level (x 256) */
 static int s_beep;                  /* frames of the BIOS's bell left */
@@ -30,7 +35,8 @@ void speaker_reset(void)
         s_ring = pc_calloc(RING * 2, sizeof(int16_t));
     }
     s_step = ((uint64_t)PIT_HZ << 32) / PC_AUDIO_HZ;
-    s_at = pc_ticks(pc_now()) << 32;
+    s_origin = pc_ticks(pc_now());
+    s_at = 0;
     s_dc = 0;
     s_beep = 0;
     s_write = s_read = 0;
@@ -53,10 +59,10 @@ static void emit(int32_t v)
 
 void speaker_run(void)
 {
-    uint64_t now = pc_ticks(pc_now()) << 32;
+    uint64_t now = (pc_ticks(pc_now()) - s_origin) << 32;
     bool data = ppi_portb & 0x02, gate = ppi_portb & 0x01;
     while (s_at + s_step <= now) {
-        uint64_t a = s_at >> 32, b = (s_at + s_step) >> 32;
+        uint64_t a = s_origin + (s_at >> 32), b = s_origin + ((s_at + s_step) >> 32);
         s_at += s_step;
         uint32_t span = (uint32_t)(b - a), high = 0;
         if (data && span) {
@@ -77,7 +83,7 @@ uint32_t speaker_position(void)
 uint64_t speaker_clock_after(uint32_t samples)
 {
     uint64_t end = s_at + (uint64_t)samples * s_step;
-    return pc_clock_of((end + 0xFFFFFFFFu) >> 32);
+    return pc_clock_of(s_origin + ((end + 0xFFFFFFFFu) >> 32));
 }
 
 void speaker_beep(int frames)
@@ -93,6 +99,8 @@ void speaker_beep(int frames)
 void speaker_frame(void)
 {
     speaker_run();
+    s_origin += s_at >> 32;         /* (the origin to the next sample's whole tick) */
+    s_at &= 0xFFFFFFFFu;
     if (s_beep && --s_beep == 0) {
         port61_write((uint8_t)(ppi_portb & ~0x03));
     }
