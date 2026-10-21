@@ -48,7 +48,7 @@ shared with the other projects: after another one, a full `flash`.
 
 | Path | What |
 |---|---|
-| `main/main.c` | The PC as an `emu_machine_t`: memory, settings (the setup screen's five rows: Machine, Processor, Coprocessor, Video, Memory), the HID key map, the mouse and touch, the drives, status (DOS's free memory as "Free RAM" with a bar), console commands |
+| `main/main.c` | The PC as an `emu_machine_t`: memory, settings (the setup screen's five rows: Machine, Processor, Coprocessor, Video, Memory), the HID key map, the mouse and the touchpad, the drives, status (DOS's free memory as "Free RAM" with a bar), console commands |
 | `main/settings.c` | NVS settings (namespace `pc`: `machine`, `cpu`, `khz`, `fpu`, `video`, `ram_kb`, `ext_kb`, `bios`); the processors (with or without the coprocessor) and memory each machine offers, per board |
 | `main/web/pcfiles.js` | The web page's packer (`/machine.js`): dropped files, folders and ZIP contents onto a FAT floppy (the smallest that fits) or a FAT16 hard disk image, in the browser; runs under node too |
 | `components/ibmpc/` | The PC, platform independent (`include/pc.h`); `host/` its host build |
@@ -122,9 +122,9 @@ shared with the other projects: after another one, a full `flash`.
   C0000h.
 - **The mouse**: `uart.c` sends 'M' when DTR and RTS come on, then
   three-byte packets at the line's speed; `pc_mouse()` takes the BT mouse
-  (`hid_mouse`) and touch (`main.c`: a drag moves, a tap is the left
-  button, a long press the right; a press between two packets is kept for
-  one).
+  (`hid_mouse`) and the touchpad (esp32emu's; `main.c` turns its picture
+  pixels into mickeys of a 640 x 400 screen; a press between two packets
+  is kept for one).
 - **Pictures** (`video.c`): esp32arc's picture copies: at each frame's end
   the registers are noted and the card's memory copied on core 0 (`picture`
   task) with a hash as the signature (copied and hashed in one pass);
@@ -400,6 +400,13 @@ shared with the other projects: after another one, a full `flash`.
 - The folder drives are read only; the coprocessor's transcendental
   functions have the doubles' 53 bits; no Sound Blaster Pro or 16, no MPU-401; the 765's
   track-level copy protection.
+- **Clock** (the clock audit, 2026-10-21: `../esp32emu/CLAUDE.md`, To do):
+  before NTP (the MaTouch at 1970) the MC146818 reads 1970 and reports a
+  good battery (register D); writes are ignored; `rtc_time()` takes the
+  later of the board's and the machine's time, so after the board's clock
+  steps back the AT's stays ahead until it catches up. DOS reads the clock
+  at boot and then counts ticks in emulated time: below real time it falls
+  behind.
 
 ## Working with the user
 

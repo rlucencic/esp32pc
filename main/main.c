@@ -290,64 +290,20 @@ static void hid_mouse(int dx, int dy, uint8_t buttons)
     pc_mouse(dx, dy, buttons & 3);
 }
 
-#define TOUCH_SLOP      6               /* picture pixels before a touch is a drag */
-#define TOUCH_RIGHT_US  600000          /* a press held this long: the right button */
-
-/* A drag moves the pointer as far as the finger goes (the picture's pixels
- * as mickeys of a 640 x 400 screen), a tap clicks the left button, a long
- * press the right one
+/* The touch screen as a touchpad (the runtime's): its moves in the
+ * picture's pixels as mickeys of a 640 x 400 screen, the fractions kept
  */
-static void touch(int x, int y, bool pressed)
+static void touchpad(int dx, int dy, uint8_t buttons)
 {
-    static enum { IDLE, PENDING, DRAG, HELD } state;
-    static int x0, y0, lx, ly, fx, fy;
-    static int64_t t0;
-    int64_t now = esp_timer_get_time();
-    if (!pressed) {
-        if (state == PENDING) {
-            pc_mouse(0, 0, 1);          /* (the press is kept for a packet) */
-            pc_mouse(0, 0, 0);
-        }
-        state = IDLE;
-        return;
-    }
-    switch (state) {
-    case IDLE:
-        x0 = lx = x;
-        y0 = ly = y;
-        t0 = now;
-        state = PENDING;
-        break;
-    case PENDING:
-        if (abs(x - x0) > TOUCH_SLOP || abs(y - y0) > TOUCH_SLOP) {
-            state = DRAG;
-        } else if (now - t0 >= TOUCH_RIGHT_US) {
-            pc_mouse(0, 0, 2);
-            pc_mouse(0, 0, 0);
-            state = HELD;
-            break;
-        } else {
-            break;
-        }
-        __attribute__((fallthrough));
-    case DRAG: {
-        int w, h;
-        pc_screen_size(&w, &h);
-        fx += (x - lx) * 640;
-        fy += (y - ly) * 400;
-        int dx = fx / w, dy = fy / h;
-        fx -= dx * w;
-        fy -= dy * h;
-        lx = x;
-        ly = y;
-        if (dx || dy) {
-            pc_mouse(dx, dy, 0);
-        }
-        break;
-    }
-    case HELD:
-        break;
-    }
+    static int fx, fy;
+    int w, h;
+    pc_screen_size(&w, &h);
+    fx += dx * 640;
+    fy += dy * 400;
+    int mx = fx / w, my = fy / h;
+    fx -= mx * w;
+    fy -= my * h;
+    pc_mouse(mx, my, buttons);
 }
 
 /* ---- Setup screen choices ----
@@ -799,7 +755,7 @@ static const emu_machine_t machine = {
     .audio_pending = pc_audio_pending,
     .hid_key = hid_key,
     .hid_mouse = hid_mouse,
-    .touch = touch,
+    .touchpad = touchpad,
     .choices = choices,
     .choice_count = CHOICES,
     .choice_names = choice_names,

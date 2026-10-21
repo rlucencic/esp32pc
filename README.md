@@ -2,7 +2,7 @@
 
 <p align="center">
   <b>An IBM PC on an ESP32-S3 or ESP32-P4 board.</b><br>
-  The PC/XT (an 8088 at 4.77 MHz) and the PC/AT (an 80286 at 6 MHz, on the Tab5 also 8 and 12 MHz, with extended memory and protected mode), a CGA, Hercules, EGA or VGA card, an AdLib and a Sound Blaster, an 8087/287 coprocessor, two floppy drives and two hard disks for disk images or folders, a serial mouse, a printer port, a built-in BIOS (no ROM images needed, a real one optional), Bluetooth and USB keyboards and mice.
+  The PC/XT (an 8088 at 4.77 MHz) and the PC/AT (an 80286 at 6 MHz, on the Tab5 also 8 and 12 MHz, with extended memory and protected mode), a CGA, Hercules, EGA or VGA card, an AdLib and a Sound Blaster, an 8087/287 coprocessor, two floppy drives and two hard disks for disk images or folders, a serial mouse, a printer port, a built-in BIOS (no ROM images needed, a real one optional), Bluetooth and USB keyboards and mice, the touch screen as a touchpad.
 </p>
 
 <p align="center">
@@ -49,7 +49,7 @@ the card). Disk images on the microSD card go into two floppy drives and
 two hard disks; blank ones come formatted, hard disks from 10 to 128 MB; a
 folder of files on the card can be a hard disk too. A
 Bluetooth or USB keyboard types, a Bluetooth or USB mouse (or a finger on
-the panel) moves the pointer, a setup screen on the touch panel and a web
+the touch screen, as a touchpad) moves the pointer, a setup screen on the touch panel and a web
 page on your network handle the rest.
 
 No ROM images are needed: the BIOS is part of the emulator, written for
@@ -184,8 +184,10 @@ folders into disk images), choose them on the setup screen's Disks page,
 and press Start. A folder of DOS programs in the `pc` folder can go into
 C: or D: as it is. FreeDOS's floppy edition is a good first disk. A
 DOS mouse driver (FreeDOS's CTMOUSE, Microsoft's MOUSE.COM) finds the mouse
-on COM1; on the panel a drag moves it, a tap clicks the left button and a
-long press the right one.
+on COM1. Without a mouse at hand, the touch screen on either board is a
+touchpad: a finger moving anywhere on it moves the pointer, a tap clicks
+the left button, a tap and touching again drags, and holding still for
+half a second holds the right one.
 
 <p align="center">
   <img alt="The setup screen on the Tab5: Machine PC/XT or PC/AT, Processor 80286 at 6, 8 or 12 MHz, Coprocessor off or on, Video CGA, Hercules, EGA or VGA, Memory 640 KB with none, 1, 4 or 15 MB more, and the WiFi, Bluetooth, Disks and Start buttons" src="docs/images/tab5-setup.png" width="70%">
