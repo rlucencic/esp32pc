@@ -542,9 +542,67 @@ static const char *disk_extension_for(uint32_t bytes)
     return bytes > 2880 * 1024 ? ".hdd" : ".img";
 }
 
+/* Free space, for the web page: a disk's FAT counted where its image is
+ * safe to read, at insert (the emulation is paused then) and on the
+ * emulation task a second after the drive's last write (each one is
+ * flushed); folders have no figure
+ */
+typedef struct {
+    volatile bool known;
+    volatile uint64_t free, size;
+    uint32_t writes;                /* the drive's write count when counted */
+    bool waiting;                   /* written since: once the writes stop */
+} space_t;
+
+static space_t s_space[DRIVES];
+
+static void space_count(int drive)
+{
+    pc_status_t s;
+    pc_get_status(&s);
+    s_space[drive].writes = s.writes[drive];
+    s_space[drive].waiting = false;
+    uint64_t f = 0, size = 0;
+    bool known = pc_disk_space(drive, &f, &size);
+    s_space[drive].known = false;
+    s_space[drive].free = f;
+    s_space[drive].size = size;
+    s_space[drive].known = known;
+}
+
+/* The figures for the web page: the size, 0 if not known */
+static uint64_t space_get(int drive, uint64_t *free_bytes)
+{
+    *free_bytes = s_space[drive].free;
+    uint64_t size = s_space[drive].size;
+    return s_space[drive].known ? size : 0;
+}
+
+static void run_frame(void)
+{
+    static int64_t last;
+    int64_t now = esp_timer_get_time();
+    if (now - last >= 1000000) {
+        last = now;
+        pc_status_t s;
+        pc_get_status(&s);
+        for (int d = 0; d < DRIVES; d++) {
+            if (s.writes[d] != s_space[d].writes) {
+                s_space[d].writes = s.writes[d];
+                s_space[d].waiting = true;      /* (the next second, if it stays so) */
+            } else if (s_space[d].waiting) {
+                space_count(d);
+            }
+        }
+    }
+    pc_run_frame();
+}
+
 static bool disk_insert(int drive, const char *path)
 {
-    return drive >= PC_FLOPPIES ? pc_hd_insert(drive - PC_FLOPPIES, path) : pc_floppy_insert(drive, path);
+    bool ok = drive >= PC_FLOPPIES ? pc_hd_insert(drive - PC_FLOPPIES, path) : pc_floppy_insert(drive, path);
+    space_count(drive);
+    return ok;
 }
 
 static void disk_eject(int drive)
@@ -554,6 +612,7 @@ static void disk_eject(int drive)
     } else {
         pc_floppy_eject(drive);
     }
+    s_space[drive].known = false;
 }
 
 static const char *disk_path(int drive)
@@ -651,8 +710,9 @@ static void status(emu_json_t *j, int section)
         } else {
             snprintf(text, sizeof(text), "cylinder %u", (unsigned)s.cylinder[d]);
         }
-        emu_json_drive(j, drive_names[d], name, disk_write_protected(d), s.light == d, s.reads[d], s.writes[d],
-                       name ? text : NULL);
+        uint64_t free_bytes, size = space_get(d, &free_bytes);
+        emu_json_drive_space(j, drive_names[d], name, disk_write_protected(d), s.light == d, s.reads[d],
+                             s.writes[d], name ? text : NULL, free_bytes, size);
     }
 }
 
@@ -728,7 +788,7 @@ static const emu_machine_t machine = {
     .reserve_memory = reserve_memory,
     .start = start,
     .reset = pc_reset,
-    .run_frame = pc_run_frame,
+    .run_frame = run_frame,
     .halted = pc_halted,
     .screen_mode = screen_mode,
     .screen_signature = pc_screen_signature,

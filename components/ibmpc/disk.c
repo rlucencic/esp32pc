@@ -16,6 +16,7 @@
  */
 #include <stdio.h>
 #include <sys/stat.h>
+#include "diskspace.h"
 #include "pc_internal.h"
 
 disk_t disks[PC_FLOPPIES + PC_HARD_DISKS];
@@ -286,6 +287,39 @@ bool disk_write(int n, uint32_t lba, uint32_t count, const uint8_t *src)
     d->writes += count;
     d->last_used = pc.frames ? pc.frames : 1;
     return ok;
+}
+
+/* ---- Free space ---- */
+
+static bool image_read(void *ctx, uint64_t offset, void *buf, uint32_t len)
+{
+    const disk_t *d = ctx;
+    uint64_t size = (uint64_t)d->total * 512;
+    if (offset > size || len > size - offset) {
+        return false;
+    }
+    if (d->data) {
+        memcpy(buf, d->data + offset, len);
+        return true;
+    }
+    FILE *f = d->file;
+    return fseek(f, (long)offset, SEEK_SET) == 0 && fread(buf, 1, len, f) == len;
+}
+
+/* The image's FAT counted now (disk_read() seeks before each transfer) */
+bool pc_disk_space(int n, uint64_t *free_bytes, uint64_t *size)
+{
+    if (n < 0 || n >= PC_FLOPPIES + PC_HARD_DISKS || !disks[n].present || disks[n].folder) {
+        return false;
+    }
+    diskspace_disk_t disk = { image_read, &disks[n], (uint64_t)disks[n].total * 512 };
+    diskspace_t s;
+    if (!(n < PC_FLOPPIES ? diskspace_fat(&disk, 0, &s) : diskspace_fat_disk(&disk, &s))) {
+        return false;
+    }
+    *free_bytes = s.free;
+    *size = s.size;
+    return true;
 }
 
 /* ---- Blank images ---- */

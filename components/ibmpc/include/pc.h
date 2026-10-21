@@ -111,6 +111,13 @@ uint32_t pc_hd_size(int drive);
  */
 bool pc_hd_create(const char *path, uint32_t bytes);
 
+/* A disk's free space and size in bytes as its FAT counts them (the data
+ * area; a hard disk's FAT partitions added up), read from the image now:
+ * not while pc_run_frame() runs on another task. n: 0-1 floppies, 2-3 hard
+ * disks. False when empty, a folder or not FAT.
+ */
+bool pc_disk_space(int n, uint64_t *free_bytes, uint64_t *size);
+
 /* ---- Status ---- */
 typedef struct {
     uint32_t frames;

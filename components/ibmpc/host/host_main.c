@@ -354,6 +354,13 @@ int main(int argc, char **argv)
         if (pc_dos_memory(&free_kb, &largest_kb)) {
             printf("DOS: %u KB free, the largest block %u KB\n", (unsigned)free_kb, (unsigned)largest_kb);
         }
+        for (int d = 0; d < PC_FLOPPIES + PC_HARD_DISKS; d++) {
+            uint64_t free_bytes, size;
+            if (pc_disk_space(d, &free_bytes, &size)) {
+                printf("%c: %llu bytes free of %llu\n", 'A' + d, (unsigned long long)free_bytes,
+                       (unsigned long long)size);
+            }
+        }
     }
     return 0;
 }

@@ -28,7 +28,7 @@ idf_component_register(SRCS "pc.c"
                        INCLUDE_DIRS "include"
                        PRIV_INCLUDE_DIRS "."
                        REQUIRES x86 upd765 emu8950
-                       PRIV_REQUIRES emudbg esp_psram)
+                       PRIV_REQUIRES emudbg esp_psram diskspace)
 
 # Runs together with the CPU core in the emulation loop
 target_compile_options(${COMPONENT_LIB} PRIVATE -O2)

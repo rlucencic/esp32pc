@@ -272,6 +272,12 @@ shared with the other projects: after another one, a full `flash`.
   parts seen. The core's own changes are checked on the host: the suites,
   then the benchmark and FreeDOS boots compared frame for frame (screens,
   CS:IP, instruction counts) against the core before the change.
+- **Free disk space** (web page, `pc_disk_space()`): floppies' FAT12,
+  hard disks' MBR + FAT12/16 (folder drives: none), counted at insert and
+  on the emulation task a second after the last write (a 64-128 MB disk's
+  FAT read then stalls it once, estimated 50-250 ms). Host: FreeDOS's DIR
+  33,425,408 bytes free, the same; Tab5 (2026-10-21): a 32 MB FreeDOS hard disk
+  19675136 of 33431552.
 
 ## Measured
 

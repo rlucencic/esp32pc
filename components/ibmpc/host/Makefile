@@ -4,10 +4,12 @@ X86       := ../../../../esp32emu/components/x86
 EMUDBG    := ../../../../esp32emu/components/emudbg
 UPD765    := ../../../../esp32emu/components/upd765
 EMU8950   := ../../../../esp32emu/components/emu8950
+DISKSPACE := ../../../../esp32emu/components/diskspace
 PC        := ..
 BUILD     := build
 CFLAGS    := -O2 -g -Wall -Wextra -Wno-unused-parameter -DX86_HOST_HOOK \
-             -I$(PC)/include -I$(PC) -I$(X86)/include -I$(EMUDBG)/include -I$(UPD765)/include -I$(EMU8950)/include
+             -I$(PC)/include -I$(PC) -I$(X86)/include -I$(EMUDBG)/include -I$(UPD765)/include -I$(EMU8950)/include \
+             -I$(DISKSPACE)/include
 
 PC_SRCS   := $(wildcard $(PC)/*.c)
 X86_SRCS  := $(X86)/x86.c $(X86)/x87.c $(X86)/x86_dis.c $(X86)/x86_dbg.c
@@ -19,8 +21,9 @@ X86_OBJS  := $(patsubst $(X86)/%.c,$(BUILD)/x86/%.o,$(X86_SRCS))
 UPD_OBJS  := $(patsubst $(UPD765)/%.c,$(BUILD)/upd765/%.o,$(UPD_SRCS))
 OPL_OBJS  := $(patsubst $(EMU8950)/%.c,$(BUILD)/emu8950/%.o,$(OPL_SRCS))
 DBG_OBJS  := $(patsubst $(EMUDBG)/%.c,$(BUILD)/emudbg/%.o,$(DBG_SRCS))
+DS_OBJS   := $(BUILD)/diskspace/fat.o
 
-$(BUILD)/pc_host: host_main.c $(PC_OBJS) $(X86_OBJS) $(UPD_OBJS) $(OPL_OBJS) $(DBG_OBJS)
+$(BUILD)/pc_host: host_main.c $(PC_OBJS) $(X86_OBJS) $(UPD_OBJS) $(OPL_OBJS) $(DBG_OBJS) $(DS_OBJS)
 	$(CC) $(CFLAGS) $^ -lm -lpthread -o $@
 
 $(BUILD)/pc/%.o: $(PC)/%.c $(wildcard $(PC)/*.h $(PC)/include/*.h) $(X86)/include/x86.h $(UPD765)/include/upd765.h $(EMU8950)/include/emu8950.h
@@ -40,6 +43,10 @@ $(BUILD)/emu8950/%.o: $(EMU8950)/%.c $(EMU8950)/include/emu8950.h
 	$(CC) $(CFLAGS) -Wno-unused-function -Wno-sign-compare -c $< -o $@
 
 $(BUILD)/emudbg/%.o: $(EMUDBG)/%.c $(EMUDBG)/include/emudbg.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/diskspace/%.o: $(DISKSPACE)/%.c $(DISKSPACE)/include/diskspace.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
