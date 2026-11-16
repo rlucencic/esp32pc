@@ -11,7 +11,7 @@ Microsoft mouse on COM1, a printer on LPT1 (a file on the card)
 one built into the firmware or the host's `PC_BIOS`). Bluetooth and USB
 keyboards and mice, touch as a touchpad, an LVGL setup screen, a web page
 for disk images (it packs dropped files and folders onto one). ESP-IDF
-v5.5.4, C.
+v5.5.6, C.
 
 The board side (tasks, LCD, touch, SD, WiFi, BLE, setup screen, web page,
 console) and the x86 core are the shared library in `../esp32emu`; see its

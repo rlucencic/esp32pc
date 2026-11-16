@@ -169,7 +169,7 @@ each choice are in [docs/architecture.md](docs/architecture.md).
 
 ## Building
 
-ESP-IDF v5.5.4, with [esp32emu](https://github.com/rlucencic/esp32emu)
+ESP-IDF v5.5.6, with [esp32emu](https://github.com/rlucencic/esp32emu)
 cloned next to this repository:
 
 ```sh
