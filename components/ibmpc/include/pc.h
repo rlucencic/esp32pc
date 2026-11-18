@@ -131,6 +131,32 @@ typedef struct {
 } pc_status_t;
 
 void pc_get_status(pc_status_t *status);
+
+/* The machine's chips for a status page: plain copies of their registers
+ * (any task, no side effects; races with the emulation are harmless)
+ */
+typedef struct {
+    bool protected_mode;            /* the 286's MSW bit 0 */
+    bool a20;                       /* the A20 gate open (the AT) */
+    uint8_t bios_mode;              /* the BIOS's video mode (0040:0049) */
+    uint8_t page, cursor_row, cursor_col;   /* its active page and that page's cursor */
+    uint8_t shift_flags;            /* 0040:0017: bit 4 Scroll Lock, 5 Num Lock, 6 Caps Lock, 7 Insert */
+    int palette_count;              /* the colours in palette[] (0: monochrome) */
+    uint32_t palette[16];           /* 0xRRGGBB: the EGA's and VGA's 16 attributes (mode 13h the
+                                       DAC's first 16), the CGA's 16, four or two */
+    uint32_t timer_reload;          /* PIT channel 0's count, 1-65536 (IRQ 0 at 1193182 Hz / count) */
+    uint32_t speaker_reload;        /* PIT channel 2's */
+    uint8_t speaker_mode;           /* channel 2's mode, 0-5 */
+    uint8_t port61;                 /* bit 0 channel 2's gate, bit 1 the speaker's data */
+    uint16_t irq_masked;            /* the 8259s' masks (the AT's second in bits 8-15) */
+    uint16_t adlib_keys;            /* the OPL2's channels keyed on (B0h-B8h bit 5) */
+    uint8_t adlib_rhythm;           /* BDh: bit 5 rhythm mode, bits 0-4 its drums */
+    bool sb_playing, sb_auto, sb_speaker;
+    uint32_t sb_rate;               /* the DSP's samples a second */
+    uint16_t com1_divisor;          /* 115200 / divisor baud */
+    uint8_t com1_lcr, com1_mcr;     /* line and modem control (DTR bit 0, RTS bit 1) */
+} pc_machine_t;
+void pc_get_machine(pc_machine_t *m);
 /* DOS's free conventional memory and its largest free block (KB), from
  * its memory control blocks; false while there's no DOS (any task: it only
  * reads the PC's memory)

@@ -350,6 +350,20 @@ int main(int argc, char **argv)
         pc_get_status(&s);
         printf("%ld frames, %u instructions in the last, %04X:%04X, %s (%dx%d)\n", s_frame, (unsigned)s.insns,
                s.cs, s.ip, s.mode, s.width, s.height);
+        pc_machine_t m;
+        pc_get_machine(&m);
+        printf("machine: %s A20 %s, BIOS mode %02Xh page %u cursor %u,%u, shift flags %02X, timer %u, speaker %u "
+               "mode %u port 61h %02X, IRQ mask %04X, AdLib keys %03X rhythm %02X, SB %s%s %u Hz speaker %s, "
+               "COM1 divisor %u LCR %02X MCR %02X, %d colours:", m.protected_mode ? "protected" : "real",
+               m.a20 ? "open" : "closed", m.bios_mode, m.page, m.cursor_row, m.cursor_col, m.shift_flags,
+               (unsigned)m.timer_reload, (unsigned)m.speaker_reload, m.speaker_mode, m.port61, m.irq_masked,
+               m.adlib_keys, m.adlib_rhythm, m.sb_playing ? "playing" : "idle", m.sb_auto ? " auto" : "",
+               (unsigned)m.sb_rate, m.sb_speaker ? "on" : "off", m.com1_divisor, m.com1_lcr, m.com1_mcr,
+               m.palette_count);
+        for (int i = 0; i < m.palette_count; i++) {
+            printf(" %06X", (unsigned)m.palette[i]);
+        }
+        printf("\n");
         uint32_t free_kb, largest_kb;
         if (pc_dos_memory(&free_kb, &largest_kb)) {
             printf("DOS: %u KB free, the largest block %u KB\n", (unsigned)free_kb, (unsigned)largest_kb);

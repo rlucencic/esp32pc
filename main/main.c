@@ -613,49 +613,153 @@ static const disks_config_t disks = {
 
 /* ---- Status ---- */
 
+/* A colour swatch (0xRRGGBB, shown to 4 bits a component: the CGA's,
+ * EGA's and the VGA's default colours exactly)
+ */
+static int swatch(char *p, size_t size, uint32_t rgb)
+{
+    return snprintf(p, size, "<b style=\"background:#%x%x%x\">&nbsp;&nbsp;&nbsp;</b>",
+                    (unsigned)(rgb >> 20 & 15), (unsigned)(rgb >> 12 & 15), (unsigned)(rgb >> 4 & 15));
+}
+
+static void status_rows(emu_json_t *j, const pc_status_t *s)
+{
+    char text[320];
+    /* the settings until the machine starts */
+    bool started = s_cfg.conv_kb != 0;
+    pc_video_t video = started ? s_cfg.video : (pc_video_t)settings.video;
+    bool at = started ? s_cfg.board == PC_AT : settings.cpu == X86_80286;
+    unsigned ext = started ? s_cfg.ext_kb : settings.ext_kb;
+    x86_model_t cpu = started ? s_cfg.cpu : (x86_model_t)settings.cpu;
+    unsigned khz = started ? s_cfg.cpu_hz / 1000 : settings.khz;
+    bool fpu = started ? s_cfg.fpu : settings.fpu != 0;
+    pc_machine_t m;
+    pc_get_machine(&m);
+
+    snprintf(text, sizeof(text), "IBM %s: an %s at %u%s MHz%s%s <span class=\"dim\">(%.2f million instructions a "
+             "second)</span>", at ? "PC/AT" : "PC/XT", cpu == X86_80286 ? "80286" : cpu == X86_8086 ? "8086" : "8088",
+             khz / 1000, khz == 4772 ? ".77" : "", !fpu ? "" : cpu == X86_80286 ? " with a 287" : " with an 8087",
+             at ? (m.protected_mode ? ", protected mode" : ", real mode") : "", s->insns * (double)pc_screen_hz() / 1e6);
+    emu_json_row(j, "System", text);
+
+    if (at) {
+        snprintf(text, sizeof(text), "%u KB conventional, %u KB extended (XMS with a driver: HIMEM); the A20 "
+                 "gate %s; no EMS", started ? s_cfg.conv_kb : settings.ram_kb, ext, m.a20 ? "open" : "closed");
+    } else {
+        snprintf(text, sizeof(text), "%u KB conventional (an XT has no extended memory); no EMS",
+                 started ? s_cfg.conv_kb : settings.ram_kb);
+    }
+    emu_json_row(j, "Memory", text);
+    /* DOS's, below 640 KB (FreeCOM keeps ~68 KB of it at the prompt) */
+    uint32_t free_kb, largest_kb;
+    if (started && pc_dos_memory(&free_kb, &largest_kb)) {
+        int len = snprintf(text, sizeof(text), "%u KB of %u KB", (unsigned)free_kb, (unsigned)s_cfg.conv_kb);
+        if (largest_kb < free_kb) {
+            snprintf(text + len, sizeof(text) - (size_t)len, " <span class=\"dim\">(largest block %u KB)</span>",
+                     (unsigned)largest_kb);
+        }
+        emu_json_row_bar(j, "Free RAM", text, 100 - (int)(free_kb * 100 / s_cfg.conv_kb));
+    }
+
+    bool ega = video == PC_EGA || video == PC_VGA;
+    if (s_cfg.bios_rom) {
+        snprintf(text, sizeof(text), "A %u KB BIOS ROM; the built-in one's hard disks at C8000h%s",
+                 (unsigned)(s_cfg.bios_size / 1024), ega ? ", its video BIOS at C0000h" : "");
+    } else {
+        snprintf(text, sizeof(text), "The built-in BIOS at F0000h (no ROM image)%s",
+                 ega ? (video == PC_VGA ? ", the VGA's BIOS at C0000h" : ", the EGA's BIOS at C0000h") : "");
+    }
+    emu_json_row(j, "ROM", text);
+
+    int n = snprintf(text, sizeof(text), "%s, BIOS mode %02Xh: %s, %d x %d at %d Hz",
+                     video_names[video <= PC_VGA ? video : 0], m.bios_mode, s->mode, s->width, s->height,
+                     pc_screen_hz());
+    if (strstr(s->mode, "text")) {
+        snprintf(text + n, sizeof(text) - n, "; page %u, cursor at row %u, column %u", m.page, m.cursor_row,
+                 m.cursor_col);
+    }
+    emu_json_row(j, "Screen", text);
+
+    static char swatches[1024];         /* (the web server's task only) */
+    if (m.palette_count == 0) {
+        snprintf(swatches, sizeof(swatches), "Monochrome");
+    } else {
+        n = snprintf(swatches, sizeof(swatches), "%s: ", m.palette_count == 4 ? "Background and palette" :
+                     m.palette_count == 2 ? "Black and the foreground" : !ega ? "16 colours" :
+                     strstr(s->mode, "256") ? "First 16 of 256" : "16 attributes");
+        for (int i = 0; i < m.palette_count && (size_t)n < sizeof(swatches); i++) {
+            n += swatch(swatches + n, sizeof(swatches) - n, m.palette[i]);
+        }
+    }
+    emu_json_row(j, "Palette", swatches);
+
+    /* The speaker: channel 2's square wave while port 61h's bits 0 and 1 are on */
+    if ((m.port61 & 3) == 3) {
+        n = snprintf(text, sizeof(text), "Speaker %lu Hz", 1193182ul / (m.speaker_reload ? m.speaker_reload : 65536));
+    } else {
+        n = snprintf(text, sizeof(text), "Speaker off");
+    }
+    int keys = __builtin_popcount(m.adlib_keys);
+    if (keys) {
+        n += snprintf(text + n, sizeof(text) - n, "; AdLib: %d of 9 channels on%s", keys,
+                      (m.adlib_rhythm & 0x20) ? ", rhythm mode" : "");
+    } else {
+        n += snprintf(text + n, sizeof(text) - n, "; AdLib quiet%s", (m.adlib_rhythm & 0x20) ? " (rhythm mode)" : "");
+    }
+    if (m.sb_playing) {
+        snprintf(text + n, sizeof(text) - n, "; Sound Blaster (A220 I7 D1): %lu Hz%s, speaker %s",
+                 (unsigned long)m.sb_rate, m.sb_auto ? " auto-init" : "", m.sb_speaker ? "on" : "off");
+    } else {
+        snprintf(text + n, sizeof(text) - n, "; Sound Blaster (A220 I7 D1) idle");
+    }
+    emu_json_row(j, "Sound", text);
+
+    /* IRQ 0's rate, and the IRQs the 8259s let through */
+    static const char *const irq_names[16] = {
+        [0] = " timer", [1] = " keyboard", [4] = " mouse", [6] = " floppy", [7] = " sound", [8] = " clock",
+        [13] = " FPU", [14] = " disk",
+    };
+    unsigned tenths = (unsigned)(11931820ull / (m.timer_reload ? m.timer_reload : 65536));
+    n = snprintf(text, sizeof(text), "Timer %u.%u Hz; on:", tenths / 10, tenths % 10);
+    int on = 0;
+    for (int i = 0; i < (at ? 16 : 8); i++) {
+        if (!(m.irq_masked >> i & 1) && (i < 8 || !(m.irq_masked & 0x04))) {
+            n += snprintf(text + n, sizeof(text) - n, "%s %d%s", on++ ? "," : "", i,
+                          i == 2 && at ? " cascade" : irq_names[i] ? irq_names[i] : "");
+        }
+    }
+    emu_json_row(j, "Interrupts", on ? text : "All masked");
+
+    /* COM1's mouse: powered while a driver holds DTR and RTS on */
+    n = snprintf(text, sizeof(text), "COM1 (3F8h): a Microsoft mouse, ");
+    if ((m.com1_mcr & 3) == 3 && m.com1_divisor) {
+        static const char parity[8] = { 'N', 'O', 'N', 'E', 'N', 'M', 'N', 'S' };
+        n += snprintf(text + n, sizeof(text) - n, "%lu baud %d%c%d", 115200ul / m.com1_divisor, 5 + (m.com1_lcr & 3),
+                      parity[(m.com1_lcr >> 3) & 7], (m.com1_lcr & 4) ? 2 : 1);
+    } else {
+        n += snprintf(text + n, sizeof(text) - n, "no driver yet");
+    }
+    if (s_cfg.printer) {
+        snprintf(text + n, sizeof(text) - n, "; LPT1 (378h): PRINTER.TXT, %u bytes", (unsigned)s_printed);
+    }
+    emu_json_row(j, "Ports", text);
+
+    snprintf(text, sizeof(text), "By position (US), no Pause or Windows keys; Num Lock %s, "
+             "Caps Lock %s, Scroll Lock %s", (m.shift_flags & 0x20) ? "on" : "off",
+             (m.shift_flags & 0x40) ? "on" : "off", (m.shift_flags & 0x10) ? "on" : "off");
+    emu_json_row(j, "Keyboard", text);
+    emu_json_row(j, "Disks", at ? "A:, B: 360 KB-2.88 MB (the 765); C:, D: images or read-only folders (the AT's "
+                 "controller at 1F0h)" : "A:, B: 360 KB-2.88 MB (the 765); C:, D: images or read-only folders (the "
+                 "BIOS's INT 13h)");
+}
+
 static void status(emu_json_t *j, int section)
 {
     char text[160];
     pc_status_t s;
     pc_get_status(&s);
     if (section == EMU_STATUS_ROWS) {
-        /* the settings until the machine starts */
-        bool started = s_cfg.conv_kb != 0;
-        pc_video_t video = started ? s_cfg.video : (pc_video_t)settings.video;
-        bool at = started ? s_cfg.board == PC_AT : settings.cpu == X86_80286;
-        unsigned ext = started ? s_cfg.ext_kb : settings.ext_kb;
-        char mem[32];
-        if (at && ext) {
-            snprintf(mem, sizeof(mem), "640 KB + %u MB", ext / 1024);
-        } else {
-            snprintf(mem, sizeof(mem), "%u KB", started ? s_cfg.conv_kb : settings.ram_kb);
-        }
-        snprintf(text, sizeof(text), "IBM %s, %s", at ? "PC/AT" : "PC/XT", mem);
-        emu_json_row(j, "System", text);
-        x86_model_t cpu = started ? s_cfg.cpu : (x86_model_t)settings.cpu;
-        unsigned khz = started ? s_cfg.cpu_hz / 1000 : settings.khz;
-        bool fpu = started ? s_cfg.fpu : settings.fpu != 0;
-        snprintf(text, sizeof(text), "%s%s at %u%s MHz <span class=\"dim\">(%.2f million instructions a second)</span>",
-                 cpu == X86_80286 ? "80286" : cpu == X86_8086 ? "8086" : "8088",
-                 !fpu ? "" : cpu == X86_80286 ? " + 287" : " + 8087", khz / 1000, khz == 4772 ? ".77" : "",
-                 s.insns * (double)pc_screen_hz() / 1e6);
-        emu_json_row(j, "CPU", text);
-        snprintf(text, sizeof(text), "%s: %s", video_names[video <= PC_VGA ? video : 0], s.mode);
-        emu_json_row(j, "Video", text);
-        /* DOS's, below 640 KB (FreeCOM keeps ~68 KB of it at the prompt) */
-        uint32_t free_kb, largest_kb;
-        if (started && pc_dos_memory(&free_kb, &largest_kb)) {
-            int len = snprintf(text, sizeof(text), "%u KB of %u KB", (unsigned)free_kb, (unsigned)s_cfg.conv_kb);
-            if (largest_kb < free_kb) {
-                snprintf(text + len, sizeof(text) - (size_t)len, " <span class=\"dim\">(largest block %u KB)</span>",
-                         (unsigned)largest_kb);
-            }
-            emu_json_row_bar(j, "Free RAM", text, 100 - (int)(free_kb * 100 / s_cfg.conv_kb));
-        }
-        if (s_printed) {
-            snprintf(text, sizeof(text), "%u bytes printed to PRINTER.TXT", (unsigned)s_printed);
-            emu_json_row(j, "Printer", text);
-        }
+        status_rows(j, &s);
         return;
     }
     for (int d = 0; d < DRIVES; d++) {

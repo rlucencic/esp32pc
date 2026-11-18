@@ -309,6 +309,14 @@ void bios_vga_init(x86_t *c);
 void bios_return_cf(x86_t *c, bool cf);
 void bios_return_zf(x86_t *c, bool zf);
 
+/* ---- For pc_get_machine(): plain reads of the chips, from any task ---- */
+uint32_t pit_reload(int ch, uint8_t *mode);
+uint16_t pic_masks(void);           /* the second chip's in the high byte */
+void sound_state(pc_machine_t *m);
+void uart_state(uint16_t *divisor, uint8_t *lcr, uint8_t *mcr);
+int video_palette(uint32_t rgb[16]);
+int vga_palette(uint32_t rgb[16]);  /* (vga.c: the EGA's and VGA's live registers) */
+
 /* ---- Disk images ---- */
 typedef struct {
     char path[192];

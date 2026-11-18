@@ -454,6 +454,29 @@ bool pc_dos_memory(uint32_t *free_kb, uint32_t *largest_kb)
     return true;
 }
 
+void pc_get_machine(pc_machine_t *m)
+{
+    memset(m, 0, sizeof(*m));
+    if (pc.ram == NULL) {
+        return;
+    }
+    m->protected_mode = pc.cfg.board == PC_AT && (pc.cpu.msw & 1);
+    m->a20 = pc.cfg.board == PC_AT && pc.cpu.addr_mask == 0xFFFFFF;
+    m->bios_mode = *bda(0x49) & 0x7F;
+    m->page = *bda(0x62) & 7;
+    m->cursor_col = bda(0x50 + m->page * 2)[0];
+    m->cursor_row = bda(0x50 + m->page * 2)[1];
+    m->shift_flags = *bda(0x17);
+    m->palette_count = video_palette(m->palette);
+    uint8_t mode;
+    m->timer_reload = pit_reload(0, &mode);
+    m->speaker_reload = pit_reload(2, &m->speaker_mode);
+    m->port61 = ppi_portb;
+    m->irq_masked = pic_masks();
+    sound_state(m);
+    uart_state(&m->com1_divisor, &m->com1_lcr, &m->com1_mcr);
+}
+
 void pc_get_status(pc_status_t *s)
 {
     memset(s, 0, sizeof(*s));

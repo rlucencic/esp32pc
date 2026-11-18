@@ -199,6 +199,18 @@ shared with the other projects: after another one, a full `flash`.
   control blocks, the chain's start found by looking for one that reaches
   the top of conventional memory. At the prompt FreeCOM keeps ~68 KB of it
   (swapped out to XMS when a program runs: MEM shows more).
+- **The web page's machine card** (`status_rows()` in `main/main.c`,
+  `pc_get_machine()`: plain copies of the chips' registers and the BIOS
+  data area): System (CPU, clock, the 286's real or protected mode,
+  instructions a second), Memory (conventional, extended, the A20 gate),
+  Free RAM, ROM, Screen (the card, the BIOS's mode, the picture and its
+  rate, page and cursor in text), Palette (the EGA's/VGA's 16 attributes
+  through the DAC, mode 13h the DAC's first 16; the CGA's colours), Sound
+  (the speaker's PIT channel 2, AdLib channels keyed on, the Sound
+  Blaster's DMA), Interrupts (IRQ 0's rate, the unmasked IRQs), Ports
+  (COM1's mouse line, LPT1's file), Keyboard (the lock keys from
+  0040:0017), Disks. At most ~1.85 KB of rows (esp32emu's status reply
+  has 4 KB). The host prints the same as `machine:` at the end.
 - **Disks**: floppies and hard disks read and written in place (geometry
   from a VHD footer, the partition table, or 16 x 63), or a folder. Blank hard
   disks (10-128 MB) are partitioned and formatted with a master boot record

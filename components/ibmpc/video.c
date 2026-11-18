@@ -181,6 +181,46 @@ bool video_out(uint16_t port, uint8_t v)
     return s_card->out(port, v);
 }
 
+/* The colours the picture can show now (0xRRGGBB): the EGA's and VGA's
+ * 16 attributes, the CGA's 16 in text, its background and palette in
+ * 320 x 200, black and the foreground in 640 x 200; none for the MDA's
+ */
+int video_palette(uint32_t rgb[16])
+{
+    static const uint32_t irgb[16] = {
+        0x000000, 0x0000AA, 0x00AA00, 0x00AAAA, 0xAA0000, 0xAA00AA, 0xAA5500, 0xAAAAAA,
+        0x555555, 0x5555FF, 0x55FF55, 0x55FFFF, 0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF,
+    };
+    if (s_card == NULL) {
+        return 0;
+    }
+    switch (pc.cfg.video) {
+    case PC_EGA:
+    case PC_VGA:
+        return vga_palette(rgb);
+    case PC_CGA:
+        if (!(adapter.mode & 0x02)) {
+            memcpy(rgb, irgb, sizeof(irgb));
+            return 16;
+        }
+        rgb[0] = (adapter.mode & 0x10) ? 0 : irgb[adapter.color & 15];
+        if (adapter.mode & 0x10) {
+            rgb[1] = irgb[adapter.color & 15];
+            return 2;
+        } else {
+            static const uint8_t pals[3][3] = { { 2, 4, 6 }, { 3, 5, 7 }, { 3, 4, 7 } };
+            const uint8_t *pal = pals[(adapter.mode & 0x04) ? 2 : (adapter.color >> 5) & 1];
+            uint8_t bright = (adapter.color & 0x10) ? 8 : 0;
+            for (int i = 0; i < 3; i++) {
+                rgb[1 + i] = irgb[pal[i] | bright];
+            }
+            return 4;
+        }
+    default:
+        return 0;
+    }
+}
+
 const char *video_mode_name(void)
 {
     return s_card ? s_card->mode_name(&adapter) : "-";     /* (not started yet) */

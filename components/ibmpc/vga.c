@@ -714,6 +714,48 @@ static const char *mode_name(const adapter_t *a)
     return name;
 }
 
+/* The 16 attributes' colours as the registers stand (0xRRGGBB), as
+ * colour() works them out; mode 13h's 256 colours: the DAC's first 16
+ */
+int vga_palette(uint32_t rgb[16])
+{
+    const vga_regs_t *r = &v.r;
+    for (int a = 0; a < 16; a++) {
+        if (!v.vga) {
+            uint8_t pal = r->attr[a] & 0x3F;
+            if (((r->misc >> 2) & 3) == 0) {
+                static const uint32_t irgb[16] = {
+                    0x000000, 0x0000AA, 0x00AA00, 0x00AAAA, 0xAA0000, 0xAA00AA, 0xAA5500, 0xAAAAAA,
+                    0x555555, 0x5555FF, 0x55FF55, 0x55FFFF, 0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF,
+                };
+                rgb[a] = irgb[(pal & 7) | ((pal & 0x10) ? 8 : 0)];
+            } else {
+                uint32_t red = ((pal >> 2) & 1) * 2 + ((pal >> 5) & 1);
+                uint32_t green = ((pal >> 1) & 1) * 2 + ((pal >> 4) & 1);
+                uint32_t blue = (pal & 1) * 2 + ((pal >> 3) & 1);
+                rgb[a] = red * 0x55 << 16 | green * 0x55 << 8 | blue * 0x55;
+            }
+            continue;
+        }
+        uint8_t i = (uint8_t)a;
+        if (!(r->gc[5] & 0x40)) {
+            i = r->attr[a] & 0x3F;
+            if (r->attr[0x10] & 0x80) {
+                i = (uint8_t)((i & 0x0F) | (r->attr[0x14] & 3) << 4);
+            }
+            i = (uint8_t)(i | (r->attr[0x14] & 0x0C) << 4);
+        }
+        i &= r->pel_mask;
+        uint32_t c = 0;
+        for (int k = 0; k < 3; k++) {
+            uint8_t six = r->dac[i][k] & 0x3F;
+            c = c << 8 | (uint32_t)(six << 2 | six >> 4);
+        }
+        rgb[a] = c;
+    }
+    return 16;
+}
+
 static void apply(picture_t *p, const change_t *ch)
 {
     if (ch->reg == 0x80 && ch->index < 21) {

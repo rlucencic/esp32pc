@@ -124,6 +124,12 @@ static void plan_edge(uint64_t t)
     }
 }
 
+uint32_t pit_reload(int ch, uint8_t *mode)
+{
+    *mode = s_ch[ch].mode;
+    return s_ch[ch].reload;
+}
+
 void pit_reset(void)
 {
     memset(s_ch, 0, sizeof(s_ch));

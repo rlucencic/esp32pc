@@ -72,6 +72,11 @@ static void update(void)
     x86_set_intr(&pc.cpu, pending(&s_pic[0]) >= 0);
 }
 
+uint16_t pic_masks(void)
+{
+    return (uint16_t)(s_pic[0].imr | (chips() > 1 ? s_pic[1].imr : 0xFF) << 8);
+}
+
 void pic_reset(void)
 {
     memset(s_pic, 0, sizeof(s_pic));

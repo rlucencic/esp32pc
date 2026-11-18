@@ -491,6 +491,19 @@ bool sound_out(uint16_t port, uint8_t v)
     return true;
 }
 
+void sound_state(pc_machine_t *m)
+{
+    m->adlib_keys = 0;
+    for (int ch = 0; ch < 9; ch++) {
+        m->adlib_keys |= (o.reg[0xB0 + ch] & 0x20) ? 1u << ch : 0;
+    }
+    m->adlib_rhythm = o.reg[0xBD] & 0x3F;
+    m->sb_playing = d.mode != DSP_IDLE && !d.paused && !d.reset;
+    m->sb_auto = d.mode == DSP_AUTO;
+    m->sb_speaker = d.speaker;
+    m->sb_rate = d.rate;
+}
+
 void sound_reset(void)
 {
     if (s_opl == NULL) {

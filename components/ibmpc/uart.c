@@ -252,6 +252,13 @@ bool uart_out(uint16_t port, uint8_t v)
     return true;
 }
 
+void uart_state(uint16_t *divisor, uint8_t *lcr, uint8_t *mcr)
+{
+    *divisor = (uint16_t)(u.dll | u.dlm << 8);
+    *lcr = u.lcr;
+    *mcr = u.mcr;
+}
+
 void uart_reset(void)
 {
     memset(&u, 0, sizeof(u));
