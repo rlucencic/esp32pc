@@ -59,6 +59,7 @@ real BIOS ROM can be used instead (an open source one such as
 [GLaBIOS](https://github.com/640-KB/GLaBIOS), or your own).
 
 It's a sibling of
+[esp32oric](https://github.com/rlucencic/esp32oric) (Oric Atmos and Oric-1),
 [esp32ste](https://github.com/rlucencic/esp32ste) (Atari STE),
 [esp32mac](https://github.com/rlucencic/esp32mac) (Macintosh Plus, SE, Classic),
 [esp32mac2](https://github.com/rlucencic/esp32mac2) (Macintosh LC and II),
