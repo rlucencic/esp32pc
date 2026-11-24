@@ -196,6 +196,10 @@ half a second holds the right one.
   <img alt="The setup screen on the Tab5: Machine PC/XT or PC/AT, Processor 80286 at 6, 8 or 12 MHz, Coprocessor off or on, Video CGA, Hercules, EGA or VGA, Memory 640 KB with none, 1, 4 or 15 MB more, and the WiFi, Bluetooth, Disks and Start buttons" src="docs/images/tab5-setup.png" width="70%">
 </p>
 
+## Roadmap
+
+See [TODO.md](TODO.md) for proposed work and how to verify it.
+
 ## Credits
 
 - The character sets are IBM's as the
